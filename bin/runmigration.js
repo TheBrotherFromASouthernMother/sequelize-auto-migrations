@@ -15,7 +15,8 @@ const optionDefinitions = [
     { name: 'list', alias: 'l', type: Boolean, description: 'Show migration file list (without execution)', defaultValue: false },
     { name: 'migrations-path', type: String, description: 'The path to the migrations folder' },
     { name: 'models-path', type: String, description: 'The path to the models folder' },
-    { name: 'help', type: Boolean, description: 'Show this message' }
+    { name: 'id', alias: 'i', type: String, description: 'Runs the migration located at a specific filename or (id)'},
+    { name: 'help', type: Boolean, description: 'Show this message' },
 ];
 
 const options = commandLineArgs(optionDefinitions);
@@ -26,7 +27,7 @@ if(!process.env.PWD){
 }
 
 let {
-    migrationsDir, 
+    migrationsDir,
     modelsDir
 } = pathConfig(options);
 
@@ -57,7 +58,7 @@ const queryInterface = sequelize.getQueryInterface();
 let fromRevision = options.rev;
 let fromPos = parseInt(options.pos);
 let stop = options.one;
-
+let migrationId = options.id;
 let migrationFiles = fs.readdirSync(migrationsDir)
 // filter JS files
   .filter((file) => {
@@ -76,27 +77,26 @@ let migrationFiles = fs.readdirSync(migrationsDir)
       let rev = parseInt( path.basename(file).split('-',2)[0]);
       return (rev >= fromRevision);
   });
-  
-console.log("Migrations to execute:");  
+
 migrationFiles.forEach((file) => {
     console.log("\t"+file);
 });
 
 if (options.list)
     process.exit(0);
-
-
-Async.eachSeries(migrationFiles, 
+Async.eachSeries(migrationFiles,
     function (file, cb) {
-        console.log("Execute migration from file: "+file);
-        migrate.executeMigration(queryInterface, path.join(migrationsDir, file), fromPos, (err) => {
+        if (!migrationId || migrationId === file) {
+          console.log("Execute migration from file: "+file);
+          migrate.executeMigration(queryInterface, path.join(migrationsDir, file), fromPos, (err) => {
             if (stop)
-                return cb("Stopped");
-                
+            return cb("Stopped");
+
             cb(err);
-        });
-        // set pos to 0 for next migration
-        fromPos = 0;
+          });
+          // set pos to 0 for next migration
+          fromPos = 0;
+        }
     },
     function(err) {
         console.log(err);
